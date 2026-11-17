@@ -37,9 +37,26 @@ app.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'SAMEORIGIN',
     'Referrer-Policy': 'same-origin',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+      "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+      "img-src 'self' data: blob:",
+      "frame-src 'self' https://docs.google.com",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; '),
   });
   next();
 });
+
+app.use(express.static(PUBLIC_DIR, {
+  index: false, dotfiles: 'ignore',
+  setHeaders: (res, file) => { if (/\.(js|css)$/.test(file)) res.set('Cache-Control', IS_PROD ? 'public, max-age=3600' : 'no-cache'); },
+}));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(session({
@@ -49,11 +66,6 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: 'lax', secure: IS_PROD, maxAge: 1000 * 60 * 60 * 8 },
-}));
-
-app.use(express.static(PUBLIC_DIR, {
-  index: false, dotfiles: 'ignore',
-  setHeaders: (res, file) => { if (/\.(js|css)$/.test(file)) res.set('Cache-Control', IS_PROD ? 'public, max-age=3600' : 'no-cache'); },
 }));
 
 /* ---- HTML Pages ---- */

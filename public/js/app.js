@@ -265,10 +265,19 @@
   }
 
   /* ---------- boot ---------- */
+  const cachedMe = (() => { try { return JSON.parse(sessionStorage.getItem('iss.me')); } catch { return null; } })();
   const meRequest = api('/api/me');             // start immediately, in parallel with page scripts
   meRequest.catch(() => {});                    // handled via ISS.ready consumers (401 already redirects)
   buildShell();
-  const ready = meRequest.then((me) => { applyUser(me); return me; });
+  if (cachedMe) applyUser(cachedMe);            // paint role menu items & profile instantly (0ms)
+  const ready = meRequest.then((me) => {
+    try { sessionStorage.setItem('iss.me', JSON.stringify(me)); } catch {}
+    applyUser(me);
+    return me;
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.logout')) { try { sessionStorage.removeItem('iss.me'); } catch {} }
+  });
 
   // Friendly messages for ?error=… redirects from the server
   const ERR = {
