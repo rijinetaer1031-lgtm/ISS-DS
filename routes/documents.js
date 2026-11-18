@@ -25,16 +25,16 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DOC_SELECT = `
   SELECT d.id, d.title, d.category, d.subfolder, COALESCE(d.doc_type, 'General') AS doc_type,
          to_char(d.document_date, 'YYYY-MM-DD') AS document_date,
+         to_char(dv.uploaded_at, 'YYYY-MM-DD') AS uploaded_at,
          d.approval_status, d.approver, d.approval_date,
          COALESCE(d.view_count, 0) AS view_count,
          dv.version_number, dv.standardized_file_name, dv.file_path
   FROM Document d
   JOIN LATERAL (
-    SELECT version_number, standardized_file_name, file_path
+    SELECT version_number, standardized_file_name, file_path, uploaded_at
     FROM DocumentVersion WHERE document_id = d.id
     ORDER BY version_number DESC LIMIT 1
   ) dv ON TRUE`;
-
 /* ---- Departments, Events & Level-3 Document Type Folders ---- */
 router.get('/api/folders', requireAuth, async (req, res) => {
   const allowFinance = canFinance(req.session.role);

@@ -1,9 +1,30 @@
 (function () {
   const { $, esc } = ISS;
   let role = '', types = [], events = {}, subfolders = {}, docs = [], query = '';
+  let filter = { from: 0, to: 0, year: '' };
   const view = $('#view'), crumbs = $('#crumbs');
+  const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const byId = (id) => docs.find((d) => d.id === id);
   const canManage = () => role !== 'Officer';
+
+  /* ---------- month-range & year filter helpers ---------- */
+  function matchesUploadRange(doc) {
+    if (!filter.from && !filter.to && !filter.year) return true;
+    const raw = doc.uploaded_at || doc.document_date || '';
+    const m = /^(\d{4})-(\d{2})-\d{2}/.exec(raw);
+    if (!m) return false;
+    const yr = m[1], mo = Number(m[2]);
+    if (filter.year && yr !== filter.year) return false;
+    if (filter.from || filter.to) {
+      const start = filter.from || filter.to;
+      const end = filter.to || filter.from;
+      const lo = Math.min(start, end), hi = Math.max(start, end);
+      if (mo < lo || mo > hi) return false;
+    }
+    return true;
+  }
+
+  const hasActiveFilter = () => Boolean(query.trim() || filter.from || filter.to || filter.year);
 
   /* ---------- routing: #/Department/Event/DocTypeFolder ---------- */
   function route() {
@@ -92,17 +113,37 @@
       : '<div class="empty"><i class="fa-regular fa-folder-open"></i><strong>This folder is empty</strong>Use “Upload here” to add the first file.</div>';
   }
 
-  function renderSearch(q) {
-    const t = q.toLowerCase();
-    const list = docs.filter((d) => `${d.title} ${d.standardized_file_name} ${d.category} ${d.subfolder || ''} ${d.doc_type || ''}`.toLowerCase().includes(t));
-    crumbs.innerHTML = `<span class="here"><i class="fa-solid fa-magnifying-glass"></i> ${plural(list.length, 'result')} for “${esc(q)}”</span>`;
+  function renderFiltered() {
+    const t = query.trim().toLowerCase();
+    const { cat, ev, dt } = route();
+    const list = docs.filter((d) => {
+      if (cat && d.category !== cat) return false;
+      if (ev && (d.subfolder || 'General') !== ev) return false;
+      if (dt && (d.doc_type || 'General') !== dt) return false;
+      if (!matchesUploadRange(d)) return false;
+      if (t && !`${d.title} ${d.standardized_file_name} ${d.category} ${d.subfolder || ''} ${d.doc_type || ''}`.toLowerCase().includes(t)) return false;
+      return true;
+    });
+
+    const parts = [];
+    if (cat) parts.push([cat, ev, dt].filter(Boolean).join(' / '));
+    if (filter.from || filter.to) {
+      const lo = Math.min(filter.from || filter.to, filter.to || filter.from);
+      const hi = Math.max(filter.from || filter.to, filter.to || filter.from);
+      parts.push(lo === hi ? MONTHS[lo] : `${MONTHS[lo]}–${MONTHS[hi]}`);
+    }
+    if (filter.year) parts.push(filter.year);
+    if (t) parts.push(`“${esc(query.trim())}”`);
+
+    crumbs.innerHTML = `<span class="here"><i class="fa-solid fa-filter"></i> ${plural(list.length, 'file')} (${parts.join(' · ')})</span>`;
     view.innerHTML = list.length
       ? `<div class="doc-list">${list.slice(0, 100).map((d) => ISS.docs.row(d, role, { edit: true, remove: true })).join('')}</div>`
-      : '<div class="empty"><i class="fa-solid fa-magnifying-glass"></i><strong>No matching documents</strong>Try a different word.</div>';
+      : '<div class="empty"><i class="fa-regular fa-folder-open"></i><strong>No matching documents</strong>Adjust your month range or search filters.</div>';
   }
 
   function render() {
-    if (query.trim()) return renderSearch(query.trim());
+    $('#resetFilter').hidden = !hasActiveFilter();
+    if (hasActiveFilter()) return renderFiltered();
     const { cat, ev, dt } = route();
     if (!cat) renderDepartments();
     else if (!ev) renderEvents(cat);
@@ -114,6 +155,13 @@
   async function load() {
     const [f, d] = await Promise.all([ISS.api('/api/folders'), ISS.api('/api/documents')]);
     types = f.types; events = f.events; subfolders = f.subfolders || {}; docs = d.documents;
+
+    const years = [...new Set(docs.map((doc) => (doc.uploaded_at || doc.document_date || '').slice(0, 4)).filter((y) => /^\d{4}$/.test(y)))].sort().reverse();
+    const prevYear = $('#mYear').value;
+    $('#mYear').innerHTML = '<option value="">All years</option>' + years.map((y) => `<option value="${y}">${y}</option>`).join('');
+    $('#mYear').value = years.includes(prevYear) ? prevYear : '';
+    filter.year = $('#mYear').value;
+
     render();
   }
 
@@ -209,6 +257,15 @@
   });
   ISS.docs.bind(view, byId, { edit: openEdit, remove: removeDoc, changed: (d) => { d.approval_status = 'Approved'; render(); } });
   $('#q').addEventListener('input', ISS.debounce((e) => { query = e.target.value; render(); }, 140));
+  $('#mFrom').addEventListener('change', (e) => { filter.from = Number(e.target.value) || 0; render(); });
+  $('#mTo').addEventListener('change', (e) => { filter.to = Number(e.target.value) || 0; render(); });
+  $('#mYear').addEventListener('change', (e) => { filter.year = e.target.value; render(); });
+  $('#resetFilter').addEventListener('click', () => {
+    $('#q').value = ''; query = '';
+    $('#mFrom').value = ''; $('#mTo').value = ''; $('#mYear').value = '';
+    filter = { from: 0, to: 0, year: '' };
+    render();
+  });
   addEventListener('hashchange', render);
 
   ISS.ready.then(async (me) => {
