@@ -11,8 +11,10 @@ const str = (v) => (typeof v === 'string' ? v.trim() : '');
 const safeSegment = (s) => String(s).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
 const escapeLike = (s) => s.replace(/[\\%_]/g, (m) => '\\' + m);
 
-const buildFileName = (category, title, date, version, ext) =>
-  `${safeSegment(category)}_${String(title).replace(/[^a-zA-Z0-9]/g, '_')}_${date}_v${version}${ext}`;
+const buildFileName = (category, docType, title, date, version, ext) => {
+  const typePart = docType && docType !== 'General' ? `_${safeSegment(docType)}` : '';
+  return `${safeSegment(category)}${typePart}_${String(title).replace(/[^a-zA-Z0-9]/g, '_')}_${date}_v${version}${ext}`;
+};
 
 function storedFile(v) {
   const parts = String(v.file_path || '').split(/[\\/]/).filter(Boolean);
@@ -37,18 +39,20 @@ async function purgeDocument(c, id, files) {
 }
 
 async function getDatabaseExport() {
-  const [users, docs, versions, activity, types, events] = await Promise.all([
+  const [users, docs, versions, activity, types, events, subfolders] = await Promise.all([
     pool.query('SELECT id, full_name, username, access_level, status, date_created FROM UserAccount'),
     pool.query('SELECT * FROM Document'),
     pool.query('SELECT * FROM DocumentVersion'),
     pool.query('SELECT * FROM ActivityLogEntry'),
     pool.query('SELECT * FROM DocumentType'),
     pool.query('SELECT * FROM EventFolder'),
+    pool.query('SELECT * FROM SubFolder'),
   ]);
   return {
     export_date: new Date().toISOString(),
     UserAccount: users.rows, Document: docs.rows, DocumentVersion: versions.rows,
     ActivityLogEntry: activity.rows, DocumentType: types.rows, EventFolder: events.rows,
+    SubFolder: subfolders.rows,
   };
 }
 

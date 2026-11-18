@@ -11,17 +11,17 @@
   <link rel="stylesheet" href="/css/app.css?v=4" />
   <title>Recycle Bin · ISS-DS</title>
 </head>
-<body data-page="recycle" data-title="Recycle bin" data-sub="Restore deleted documents and events. Only Administrators can delete them for good.">
+<body data-page="recycle" data-title="Recycle bin" data-sub="Restore deleted documents, events and folders. Only Administrators can delete them for good.">
   <main id="content" class="stack">
     <div class="tabs" role="tablist" aria-label="Deleted items">
       <button role="tab" id="tabDocs" aria-selected="true">Documents <span class="badge badge-violet" id="nDocs">0</span></button>
       <button role="tab" id="tabEvents" aria-selected="false">Events <span class="badge badge-violet" id="nEvents">0</span></button>
-      <button role="tab" id="tabTypes" aria-selected="false">Types <span class="badge badge-violet" id="nTypes">0</span></button>
+      <button role="tab" id="tabFolders" aria-selected="false">Document Folders <span class="badge badge-violet" id="nFolders">0</span></button>
     </div>
     <section id="list" class="doc-list" aria-live="polite"><div class="skeleton"></div><div class="skeleton"></div></section>
   </main>
 
   <script src="/js/app.js?v=5"></script>
-  <script src="/js/pages/recycle-bin.js" defer></script>
+  <script src="/js/pages/recycle-bin.js?v=5" defer></script>
 </body>
 </html>

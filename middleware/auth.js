@@ -8,8 +8,8 @@ const APPROVER_ROLES = ['President'];
 
 const isAdminish = (role) => ADMIN_ROLES.includes(role);
 const canFinance = (role) => FINANCE_ROLES.includes(role);
-const isFinance = (category) => String(category).toLowerCase() === 'finance';
-const visibility = (role) => (canFinance(role) ? '' : " AND lower(d.category) <> 'finance'");
+const isFinance = (category) => ['fiscal', 'finance'].includes(String(category).toLowerCase());
+const visibility = (role) => (canFinance(role) ? '' : " AND lower(d.category) NOT IN ('fiscal', 'finance')");
 
 const wantsJson = (req) => req.originalUrl.startsWith('/api/') || req.accepts(['html', 'json']) === 'json';
 
@@ -31,7 +31,7 @@ const notOfficer = (req, res, next) =>
 
 function assertCategoryAccess(role, category) {
   if (isFinance(category) && !canFinance(role)) {
-    throw httpError(403, 'Access denied: Finance documents are limited to the President, Treasurer and Secretary.');
+    throw httpError(403, 'Access denied: Fiscal documents are limited to the President, Treasurer and Secretary.');
   }
 }
 
@@ -40,8 +40,13 @@ async function assertFolderAccess(role, id) {
   if (r.rows[0]) assertCategoryAccess(role, r.rows[0].category);
 }
 
+async function assertSubFolderAccess(role, id) {
+  const r = await pool.query('SELECT category FROM SubFolder WHERE id = $1', [id]);
+  if (r.rows[0]) assertCategoryAccess(role, r.rows[0].category);
+}
+
 module.exports = {
   ROLES, ADMIN_ROLES, FINANCE_ROLES, APPROVER_ROLES,
   isAdminish, canFinance, isFinance, visibility, wantsJson,
-  requireAuth, requireRole, notOfficer, assertCategoryAccess, assertFolderAccess,
+  requireAuth, requireRole, notOfficer, assertCategoryAccess, assertFolderAccess, assertSubFolderAccess,
 };

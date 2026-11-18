@@ -11,11 +11,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="/css/app.css?v=4" />
 </head>
-<body data-page="documents" data-title="My Documents" data-sub="Open a folder by document type, then by event.">
+<body data-page="documents" data-title="My Documents" data-sub="Choose Secretariat or Fiscal, open an event, then browse by document type folder.">
   <main id="content" class="stack">
     <div id="heroActions" hidden>
       <a class="btn btn-light" href="/upload"><i class="fa-solid fa-cloud-arrow-up"></i> Upload a file</a>
-      <button class="btn btn-glass" id="newType" type="button" hidden><i class="fa-solid fa-folder-plus"></i> New document type</button>
     </div>
 
     <div class="searchbar" role="search">
@@ -24,7 +23,7 @@
     </div>
 
     <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
-    <section id="view" aria-live="polite"><div class="folders"><div class="skeleton" style="min-height:176px"></div><div class="skeleton" style="min-height:176px"></div><div class="skeleton" style="min-height:176px"></div></div></section>
+    <section id="view" aria-live="polite"><div class="folders"><div class="skeleton" style="min-height:176px"></div><div class="skeleton" style="min-height:176px"></div></div></section>
   </main>
 
   <!-- Edit details -->
@@ -33,16 +32,16 @@
       <div class="dlg-head"><h3><i class="fa-solid fa-pen-to-square"></i> Edit document</h3><button type="button" class="icon-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="stack" style="gap:16px">
         <div class="field"><label for="eTitle">Title</label><input class="input" id="eTitle" maxlength="150" required /></div>
-        <div class="field"><label for="eCat">Document type</label><select class="select" id="eCat"></select></div>
+        <div class="field"><label for="eCat">Department</label><select class="select" id="eCat"></select></div>
         <div class="field"><label for="eDate">Document date</label><input class="input" type="date" id="eDate" required /></div>
-        <small class="muted"><i class="fa-solid fa-circle-info"></i> Saving also updates the standardized file names. Moving to another type resets the event to General.</small>
+        <small class="muted"><i class="fa-solid fa-circle-info"></i> Saving also updates the standardized file names. Moving between Secretariat and Fiscal resets the event and folder to General.</small>
         <button class="btn btn-primary btn-block" type="submit">Save changes</button>
       </div>
     </form>
   </dialog>
 
   <script src="/js/app.js?v=5"></script>
-  <script src="/js/docs.js?v=4" defer></script>
-  <script src="/js/pages/documents.js?v=4" defer></script>
+  <script src="/js/docs.js?v=5" defer></script>
+  <script src="/js/pages/documents.js?v=5" defer></script>
 </body>
 </html>

@@ -22,10 +22,10 @@
     return '<span class="badge badge-wait"><i class="fa-solid fa-clock"></i> Pending</span>';
   }
 
-  /** List row used on the Documents page. opts: { edit, remove } */
   function row(doc, role, opts = {}) {
     const m = ISS.fileMeta(doc.standardized_file_name);
     const event = doc.subfolder && doc.subfolder !== 'General' ? `<span><i class="fa-solid fa-ticket"></i>${esc(doc.subfolder)}</span>` : '';
+    const dtype = doc.doc_type && doc.doc_type !== 'General' ? `<span><i class="fa-solid fa-folder-open"></i>${esc(doc.doc_type)}</span>` : '';
     return `<article class="doc ${m.cls}">
       <div class="doc-ico"><i class="fa-solid ${m.icon}"></i></div>
       <div class="doc-main">
@@ -33,15 +33,8 @@
         <div class="doc-meta">
           <span title="Standardized file name"><i class="fa-regular fa-file"></i>${esc(doc.standardized_file_name)}</span>
           <span><i class="fa-regular fa-calendar"></i>${ISS.fmtDate(doc.document_date)}</span>
-          <span><i class="fa-solid fa-code-branch"></i>v${doc.version_number}</span>${event}
+          <span><i class="fa-solid fa-code-branch"></i>v${doc.version_number}</span>${event}${dtype}
         </div>
-      </div>
-      <div class="doc-actions">
-        ${approvalBadge(doc, role)}
-        ${opts.edit ? `<button class="btn btn-ghost btn-sm" data-act="edit" data-id="${doc.id}" title="Edit details" aria-label="Edit ${esc(doc.title)}"><i class="fa-solid fa-pen"></i></button>` : ''}
-        <button class="btn btn-ghost btn-sm" data-act="preview" data-id="${doc.id}"><i class="fa-regular fa-eye"></i><span>Preview</span></button>
-        <a class="btn btn-ghost btn-sm" href="${esc(doc.file_url)}" download title="Download" aria-label="Download ${esc(doc.title)}"><i class="fa-solid fa-cloud-arrow-down"></i></a>
-        ${opts.remove && role !== 'Officer' ? `<button class="btn btn-ghost btn-sm" data-act="remove" data-id="${doc.id}" title="Move to Recycle Bin" aria-label="Delete ${esc(doc.title)}" style="color:var(--rose)"><i class="fa-solid fa-trash-can"></i></button>` : ''}
       </div>
     </article>`;
   }

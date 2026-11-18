@@ -40,28 +40,19 @@ async function ensureSchema() {
       id SERIAL PRIMARY KEY, category TEXT NOT NULL, name TEXT NOT NULL,
       is_deleted BOOLEAN NOT NULL DEFAULT FALSE, deleted_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT now(), UNIQUE (category, name));
+    CREATE TABLE IF NOT EXISTS SubFolder (
+      id SERIAL PRIMARY KEY, category TEXT NOT NULL, event_name TEXT NOT NULL, name TEXT NOT NULL,
+      is_deleted BOOLEAN NOT NULL DEFAULT FALSE, deleted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT now(), UNIQUE (category, event_name, name));
     ALTER TABLE DocumentType ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE DocumentType ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE EventFolder ADD COLUMN IF NOT EXISTS deleted_with_type BOOLEAN NOT NULL DEFAULT FALSE;
-    ALTER TABLE Document ADD COLUMN IF NOT EXISTS deleted_with_type BOOLEAN NOT NULL DEFAULT FALSE;`);
+    ALTER TABLE Document ADD COLUMN IF NOT EXISTS deleted_with_type BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE Document ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'General';`);
 
-  const typeCount = await pool.query('SELECT COUNT(*)::int AS n FROM DocumentType');
-  if (typeCount.rows[0].n === 0) {
-    await pool.query(`INSERT INTO DocumentType (name) VALUES ('Reports'),('Memos'),('Records'),('Finance') ON CONFLICT DO NOTHING`);
-    await pool.query(`INSERT INTO DocumentType (name) SELECT DISTINCT category FROM Document WHERE category IS NOT NULL ON CONFLICT DO NOTHING`);
-  }
-
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM EventFolder');
-  if (rows[0].n === 0) {
-    await pool.query(`INSERT INTO EventFolder (category, name) VALUES
-      ('Memos','General Assembly'),('Memos','Year-End Evaluation'),
-      ('Records','Resolution'),('Records','Minutes of the meeting'),
-      ('Reports','Activity design'),('Reports','Utilization'),
-      ('Finance','Budget Allocation') ON CONFLICT DO NOTHING`);
-  }
-  await pool.query(`INSERT INTO EventFolder (category, name)
-    SELECT DISTINCT category, subfolder FROM Document
-    WHERE subfolder IS NOT NULL AND subfolder <> 'General' ON CONFLICT DO NOTHING`);
+  // Strictly two top-level departments: Secretariat and Fiscal
+  await pool.query(`DELETE FROM DocumentType WHERE name NOT IN ('Secretariat', 'Fiscal')`);
+  await pool.query(`INSERT INTO DocumentType (name) VALUES ('Secretariat'), ('Fiscal') ON CONFLICT (name) DO UPDATE SET is_deleted = FALSE, deleted_at = NULL`);
 }
 
 module.exports = { pool, tx, logActivity, ensureSchema, httpError };

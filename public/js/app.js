@@ -52,7 +52,7 @@
     return { ext, icon: 'fa-file-lines', cls: 'ft-txt' };
   }
   const TONES = ['violet', 'aqua', 'amber', 'mint', 'rose', 'indigo'];
-  const FIXED_TONE = { reports: 'violet', memos: 'aqua', records: 'amber', finance: 'mint' };
+  const FIXED_TONE = { secretariat: 'violet', fiscal: 'mint', reports: 'violet', memos: 'aqua', records: 'amber', finance: 'mint' };
   /** Stable colour per document type (known types keep their brand colour, new ones get a hashed one). */
   function toneFor(name) {
     const k = String(name).toLowerCase();
@@ -62,7 +62,8 @@
   }
   function catIcon(name) {
     const k = String(name).toLowerCase();
-    if (k.includes('financ')) return 'fa-money-check-dollar';
+    if (k.includes('fiscal') || k.includes('financ')) return 'fa-money-check-dollar';
+    if (k.includes('secretariat')) return 'fa-building-columns';
     if (k.includes('report')) return 'fa-chart-pie';
     if (k.includes('memo')) return 'fa-bullhorn';
     if (k.includes('record')) return 'fa-box-archive';
