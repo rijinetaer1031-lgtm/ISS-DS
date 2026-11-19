@@ -37,17 +37,31 @@
     const canApprove = role === 'President' && doc.approval_status !== 'Approved';
     const canModify = role !== 'Officer';
 
-    return `<article class="doc ${m.cls}">
+    const checkbox = opts.select
+      ? `<label class="doc-pick" title="Select for report" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:${opts.checked ? 'rgba(75,47,209,.12)' : '#f1f5f9'};border:1px solid ${opts.checked ? 'rgba(75,47,209,.4)' : '#cbd5e1'};cursor:pointer;font-size:11.5px;font-weight:700;color:${opts.checked ? '#3b22b8' : '#475569'};flex:none">
+           <input type="checkbox" data-doc-select="${doc.id}" ${opts.checked ? 'checked' : ''} aria-label="Select ${esc(doc.title)}" style="width:15px;height:15px;accent-color:#4b2fd1;cursor:pointer;margin:0" />
+           <span>${opts.checked ? 'Selected' : 'Select'}</span>
+         </label>`
+      : '';
+
+    const rowStyle = opts.checked
+      ? 'border-color:rgba(75,47,209,.48);background:linear-gradient(135deg,rgba(75,47,209,.04),rgba(14,138,168,.04));box-shadow:0 6px 18px rgba(75,47,209,.09);'
+      : '';
+
+    return `<article class="doc ${m.cls}${opts.checked ? ' is-selected' : ''}" data-doc-row="${doc.id}" style="${rowStyle}">
       <div class="doc-ico"><i class="fa-solid ${m.icon}"></i></div>
-      <div class="doc-main">
-        <h4 title="${esc(doc.standardized_file_name)}">${esc(doc.title)}</h4>
+      <div class="doc-main" style="min-width:0">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:4px">
+          ${checkbox}
+          <h4 title="${esc(doc.standardized_file_name)}" style="margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(doc.title)}</h4>
+        </div>
         <div class="doc-meta">
           <span title="Standardized file name"><i class="fa-regular fa-file"></i>${esc(doc.standardized_file_name)}</span>
           <span><i class="fa-regular fa-calendar"></i>${ISS.fmtDate(doc.document_date)}</span>
           <span><i class="fa-solid fa-code-branch"></i>v${doc.version_number}</span>${event}${dtype}
         </div>
       </div>
-      <div class="doc-actions">
+      <div class="doc-actions" style="flex-wrap:nowrap">
         ${statusBadge(doc)}
         ${canApprove ? `<button class="btn btn-mint btn-sm" data-doc-act="approve" data-id="${doc.id}" title="Approve document"><i class="fa-solid fa-check"></i><span>Approve</span></button>` : ''}
         <button class="btn btn-ghost btn-sm" data-doc-act="view" data-id="${doc.id}" title="Preview file"><i class="fa-solid fa-eye"></i><span>View</span></button>
