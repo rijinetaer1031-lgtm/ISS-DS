@@ -306,12 +306,25 @@ router.put('/api/documents/:id', requireAuth, async (req, res) => {
   const moves = [];
   try {
     await tx(async (c) => {
-      const cur = await c.query('SELECT id, category, COALESCE(doc_type, \'General\') AS doc_type FROM Document WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const cur = await c.query(
+        'SELECT id, category, subfolder, COALESCE(doc_type, \'General\') AS doc_type FROM Document WHERE id = $1 FOR UPDATE',
+        [req.params.id]
+      );
       if (!cur.rowCount) throw httpError(404, 'Document not found.');
       assertCategoryAccess(role, cur.rows[0].category);
 
       const moved = cur.rows[0].category !== category;
+      const effectiveSub = moved ? 'General' : cur.rows[0].subfolder;
       const effectiveDocType = moved ? 'General' : cur.rows[0].doc_type;
+
+      const dup = await c.query(
+        `SELECT 1 FROM Document
+         WHERE id <> $1 AND title = $2 AND category = $3 AND subfolder = $4 AND COALESCE(doc_type, 'General') = $5`,
+        [req.params.id, title, category, effectiveSub, effectiveDocType]
+      );
+      if (dup.rowCount) {
+        throw httpError(409, 'Another document in this folder already has that title.');
+      }
 
       const versions = await c.query('SELECT id, version_number, standardized_file_name, file_path FROM DocumentVersion WHERE document_id = $1', [req.params.id]);
       const newDir = path.join(REPO_DIR, safeSegment(category));
@@ -402,7 +415,11 @@ router.get('/signed/:id/:exp/:sig/:name', async (req, res) => {
   if (!ok) return res.sendStatus(403);
   const { rows } = await pool.query(`${DOC_SELECT} WHERE d.id = $1 AND d.is_deleted = FALSE`, [id]);
   if (!rows[0] || rows[0].standardized_file_name !== name) return res.sendStatus(404);
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"`);
+
+  const inlineSafe = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.txt', '.csv']);
+  const disposition = inlineSafe.has(path.extname(name).toLowerCase()) ? 'inline' : 'attachment';
+  res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(name)}"`);
+
   res.sendFile(storedFile(rows[0]), (err) => { if (err && !res.headersSent) res.sendStatus(404); });
 });
 

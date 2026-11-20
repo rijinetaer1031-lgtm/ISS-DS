@@ -27,7 +27,7 @@
         $('#listTitle').textContent = filtered ? 'Matching documents' : 'Recent documents';
         $('#listCount').textContent = `${list.length} file${list.length === 1 ? '' : 's'}`;
         grid.innerHTML = list.length
-          ? list.slice(0, 60).map((d, i) => ISS.docs.card(d, i, role)).join('')
+        ? list.slice(0, 60).map((d) => ISS.docs.card(d, role)).join('')
           : `<div class="empty" style="grid-column:1/-1"><i class="fa-regular fa-folder-open"></i><strong>${docs.length ? 'No documents match' : 'Nothing here yet'}</strong>${docs.length ? 'Try another word or clear the filters.' : 'Upload your first document to get started.'}</div>`;
       }
 

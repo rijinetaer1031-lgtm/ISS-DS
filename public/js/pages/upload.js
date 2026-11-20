@@ -146,7 +146,7 @@
       }
       const keepCat = cat.value, keepSub = sub.value, keepType = dtype.value;
       form.reset(); $('#date').value = ISS.todayYMD(); cat.value = keepCat; fillEvents(keepSub, keepType); setFile(null);
-      load();
+      await load();
     } catch (err) { ISS.toast(err.message, 'err', 6000); }
     finally { bar.hidden = true; }
   });

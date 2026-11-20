@@ -286,6 +286,82 @@ button.badge-wait:hover { background: #fbdf9f; transform: translateY(-1px); }
 .doc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ft-pdf { --ft: #df4766; } .ft-xls { --ft: #16a97d; } .ft-doc { --ft: #4b6bff; } .ft-ppt { --ft: #e0821f; } .ft-img { --ft: #12a4be; } .ft-txt { --ft: #8a85a3; }
 
+/* Semantic status pills */
+.badge-mint,
+.badge-ok { background: #dcf7ec; color: #0c7a58; border: 1px solid #9be6c9; }
+.badge-amber,
+.badge-wait { background: #fdf0d6; color: #99620a; border: 1px solid #f7d58b; }
+
+/* Approve CTA button — vibrant emerald */
+.btn-mint,
+.doc-actions [data-doc-act="approve"],
+.doc-card [data-doc-act="approve"] {
+  background: var(--mint);
+  color: #fff;
+  border-color: #12916b;
+  box-shadow: 0 6px 14px -6px rgba(22, 169, 125, .65);
+}
+.btn-mint:hover,
+.doc-actions [data-doc-act="approve"]:hover,
+.doc-card [data-doc-act="approve"]:hover {
+  background: #12916b;
+  color: #fff;
+}
+
+/* View button — soft violet tint */
+.doc-actions [data-doc-act="view"],
+.doc-card [data-doc-act="view"] {
+  background: #ece8ff;
+  color: var(--violet-d);
+  border-color: #d5ccff;
+}
+.doc-actions [data-doc-act="view"]:hover,
+.doc-card [data-doc-act="view"]:hover {
+  background: #dfd8ff;
+  border-color: var(--violet);
+  color: var(--violet-d);
+}
+
+/* Download button — crisp aqua tint */
+.doc-actions a[download],
+.doc-card a[download] {
+  background: #e1f6fa;
+  color: #0b7a8f;
+  border-color: #b4e8f2;
+}
+.doc-actions a[download]:hover,
+.doc-card a[download]:hover {
+  background: #cbf0f7;
+  border-color: var(--aqua);
+  color: #096475;
+}
+
+/* Edit button — warm amber accent */
+.doc-actions [data-doc-act="edit"] {
+  background: #fef5e6;
+  color: #b56f0d;
+  border-color: #f8dcb0;
+}
+.doc-actions [data-doc-act="edit"]:hover {
+  background: #fde9c7;
+  border-color: var(--amber);
+  color: #995b08;
+}
+
+/* Delete & Purge buttons — soft rose accent */
+.doc-actions [data-doc-act="remove"],
+.doc-actions [data-act="purge"] {
+  background: #ffe8ed;
+  color: #c72c4d;
+  border-color: #ffc2cf;
+}
+.doc-actions [data-doc-act="remove"]:hover,
+.doc-actions [data-act="purge"]:hover {
+  background: #ffd4de;
+  border-color: var(--rose);
+  color: #a81e3b;
+}
+
 .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 18px; }
 .doc-card {
   display: flex; flex-direction: column; gap: 14px; padding: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 22px;

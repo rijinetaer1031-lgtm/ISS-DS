@@ -2,6 +2,7 @@
   const { $, esc } = ISS;
   let role = '', userName = '', types = [], events = {}, subfolders = {}, docs = [], query = '';
   let filter = { from: 0, to: 0, year: '' };
+  let customYears = new Set();
   let selectMode = false;
   let selected = new Set();
   let visibleIds = [];
@@ -22,9 +23,9 @@
   }
 
   /* ---------- month-range & year filter helpers ---------- */
-  function matchesUploadRange(doc) {
+ function matchesUploadRange(doc) {
     if (!filter.from && !filter.to && !filter.year) return true;
-    const raw = doc.uploaded_at || doc.document_date || '';
+    const raw = doc.document_date || doc.uploaded_at || '';
     const m = /^(\d{4})-(\d{2})-\d{2}/.exec(raw);
     if (!m) return false;
     const yr = m[1], mo = Number(m[2]);
@@ -39,6 +40,27 @@
   }
 
   const hasActiveFilter = () => Boolean(query.trim() || filter.from || filter.to || filter.year);
+
+  function rebuildYearOptions(selectedYear = filter.year) {
+    const currentYear = new Date().getFullYear();
+    const defaultRecentYears = [
+      String(currentYear),
+      String(currentYear - 1),
+      String(currentYear - 2),
+    ];
+    const docYears = docs
+      .map((doc) => (doc.document_date || doc.uploaded_at || '').slice(0, 4))
+      .filter((y) => /^\d{4}$/.test(y));
+    const years = [...new Set([...defaultRecentYears, ...docYears, ...customYears])].sort().reverse();
+
+    $('#mYear').innerHTML =
+      '<option value="">All years</option>' +
+      years.map((y) => `<option value="${y}">${y}</option>`).join('') +
+      '<option value="__add_year__">+ Add year…</option>';
+
+    $('#mYear').value = years.includes(selectedYear) ? selectedYear : '';
+    filter.year = $('#mYear').value;
+  }
 
   /* ---------- routing: #/Department/Event/DocTypeFolder ---------- */
   function route() {
@@ -89,9 +111,6 @@
           <span class="badge ${count ? 'badge-indigo' : ''}" style="font-weight:700;padding:5px 11px">${count} selected</span>
           <button type="button" class="btn btn-primary btn-sm" id="btnGenReport" ${count ? '' : 'disabled'} style="color:#fff">
             <i class="fa-solid fa-file-contract"></i> Generate Report
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btnCsvReport" ${count ? '' : 'disabled'}>
-            <i class="fa-solid fa-file-csv"></i> CSV
           </button>
           <button type="button" class="btn btn-ghost btn-sm" id="btnExitSel" title="Cancel report selection">
             <i class="fa-solid fa-xmark"></i> Cancel
@@ -225,7 +244,7 @@
     else renderFiles(cat, ev, dt);
   }
 
-  /* ---------- Content-Based Report Generator ---------- */
+  /* ---------- Consolidated Abstract Report Generator ---------- */
   const getSelectedDocs = () => docs.filter((d) => selected.has(d.id));
 
   function loadScriptOnce(src) {
@@ -251,14 +270,72 @@
     ]);
   }
 
-  function summarizeText(rawText) {
+  /* Extractive abstract & key-point builder */
+  function buildAbstractFromText(rawText, doc) {
     const clean = (rawText || '').replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
-    if (!clean) return { summary: 'No readable text found in this file.', paragraphs: [], wordCount: 0 };
+    if (!clean) {
+      return {
+        abstract: `This record (${doc.title}) is filed under ${doc.category} (${doc.subfolder || 'General'}) and contains no selectable text layer.`,
+        highlights: [],
+        metrics: [],
+        paragraphs: [],
+        wordCount: 0,
+      };
+    }
+
     const words = clean.split(/\s+/).filter(Boolean);
     const lines = clean.split('\n').map((l) => l.trim()).filter((l) => l.length > 2);
-    const keyLines = lines.slice(0, 4);
+
+    const rawSentences = clean
+      .replace(/\n+/g, '. ')
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.replace(/\s+/g, ' ').trim())
+      .filter((s) => s.length >= 25 && s.length <= 420);
+
+    const stopWords = new Set(['the', 'and', 'for', 'that', 'this', 'with', 'from', 'are', 'was', 'were', 'will', 'have', 'has', 'had', 'been', 'into', 'also', 'their', 'they', 'them', 'which', 'about', 'would', 'could', 'should', 'other', 'more', 'some', 'such', 'than', 'then', 'when', 'where', 'what', 'who', 'whom', 'whose', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'most', 'none', 'one', 'two', 'per', 'via']);
+    const freq = {};
+    words.forEach((w) => {
+      const k = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (k.length > 3 && !stopWords.has(k)) freq[k] = (freq[k] || 0) + 1;
+    });
+
+    const keywords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k);
+
+    const scored = rawSentences.map((sentence, idx) => {
+      const tokens = sentence.toLowerCase().split(/\W+/).filter(Boolean);
+      let score = tokens.reduce((acc, t) => acc + (freq[t] || 0), 0) / Math.max(tokens.length, 6);
+      if (idx === 0) score += 2.5;
+      else if (idx <= 2) score += 1.4;
+      if (idx === rawSentences.length - 1) score += 0.8;
+      if (/\b(purpose|objective|summary|resolved|approved|total|budget|target|schedule|conducted|aims|concludes|recommends|implemented)\b/i.test(sentence)) score += 1.6;
+      if (/(\d+%|\bphp\b|\b₱\s?\d|\d{1,3}(,\d{3})+)/i.test(sentence)) score += 1.2;
+      return { sentence, idx, score };
+    });
+
+    const topSentences = scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .sort((a, b) => a.idx - b.idx)
+      .map((item) => item.sentence.replace(/\.+$/, '') + '.');
+
+    const metricMatches = clean.match(/(?:₱\s?\d[\d,.]*|PHP\s?\d[\d,.]*|\b\d+(?:\.\d+)?%|\b\d+\s+(?:participants|members|students|officers|attendees|days|items|files|rooms|sessions)\b)/gi) || [];
+    const metrics = [...new Set(metricMatches.map((m) => m.trim()))].slice(0, 5);
+
+    const abstractText = topSentences.length
+      ? topSentences.join(' ')
+      : lines.slice(0, 3).join(' ').slice(0, 380) + (clean.length > 380 ? '…' : '');
+
+    const highlights = scored
+      .slice(0, 6)
+      .map((s) => s.sentence.replace(/\.+$/, '') + '.')
+      .filter((s, i, arr) => arr.indexOf(s) === i)
+      .slice(0, 3);
+
     return {
-      summary: keyLines.join(' · ').slice(0, 320) + (clean.length > 320 ? '…' : ''),
+      abstract: abstractText,
+      highlights,
+      metrics,
+      keywords,
       paragraphs: lines,
       wordCount: words.length,
     };
@@ -271,12 +348,15 @@
     try {
       if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
         return {
-          kind: 'image',
+          kind: 'Visual Attachment',
           wordCount: 0,
-          summary: `Embedded visual attachment (${ext.toUpperCase()})`,
-          html: `<div style="text-align:center;padding:10px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
-                   <img src="${esc(doc.file_url)}" alt="${esc(doc.title)}" style="max-width:100%;max-height:380px;border-radius:8px;object-fit:contain" />
-                 </div>`,
+          abstract: `Visual documentation titled “${doc.title}” (${ext.toUpperCase()} image) filed under ${doc.category} — ${doc.subfolder || 'General'} (${ISS.fmtDate(doc.document_date)}).`,
+          highlights: [`Attached image record: ${fileName}`],
+          metrics: [],
+          keywords: [doc.category.toLowerCase(), (doc.doc_type || 'image').toLowerCase()],
+          rawHtml: `<div style="text-align:center;padding:10px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+                      <img src="${esc(doc.file_url)}" alt="${esc(doc.title)}" style="max-width:100%;max-height:340px;border-radius:8px;object-fit:contain" />
+                    </div>`,
           plainText: `[Image file: ${fileName}]`,
         };
       }
@@ -284,23 +364,24 @@
       const res = await fetch(doc.file_url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Word (.docx)
       if (ext === 'docx' && window.mammoth) {
         const buf = await res.arrayBuffer();
         const { value } = await window.mammoth.extractRawText({ arrayBuffer: buf });
-        const info = summarizeText(value);
+        const info = buildAbstractFromText(value, doc);
         return {
-          kind: 'document',
+          kind: 'Word Document',
           wordCount: info.wordCount,
-          summary: info.summary,
-          html: info.paragraphs.length
+          abstract: info.abstract,
+          highlights: info.highlights,
+          metrics: info.metrics,
+          keywords: info.keywords,
+          rawHtml: info.paragraphs.length
             ? info.paragraphs.map((p) => `<p style="margin:0 0 8px;line-height:1.6">${esc(p)}</p>`).join('')
-            : '<p class="muted">This Word document contains no extractable text.</p>',
+            : '<p class="muted">No extractable text found.</p>',
           plainText: value.trim(),
         };
       }
 
-      // PDF (.pdf)
       if (ext === 'pdf' && window.pdfjsLib) {
         const buf = await res.arrayBuffer();
         const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
@@ -311,28 +392,35 @@
           const pageText = content.items.map((it) => it.str).join(' ');
           fullText += (p > 1 ? '\n\n' : '') + pageText;
         }
-        const info = summarizeText(fullText);
+        const info = buildAbstractFromText(fullText, doc);
         return {
           kind: `PDF (${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'})`,
           wordCount: info.wordCount,
-          summary: info.summary,
-          html: info.paragraphs.length
+          abstract: info.abstract,
+          highlights: info.highlights,
+          metrics: info.metrics,
+          keywords: info.keywords,
+          rawHtml: info.paragraphs.length
             ? info.paragraphs.map((p) => `<p style="margin:0 0 8px;line-height:1.6">${esc(p)}</p>`).join('')
-            : '<p class="muted">Scanned or image-only PDF (no selectable text layer found).</p>',
+            : '<p class="muted">Scanned or image-only PDF (no selectable text layer).</p>',
           plainText: fullText.trim(),
         };
       }
 
-      // Excel (.xlsx, .xls)
       if (['xlsx', 'xls'].includes(ext) && window.XLSX) {
         const buf = await res.arrayBuffer();
         const wb = window.XLSX.read(buf, { type: 'array' });
+        let totalRows = 0;
+        const sheetSummaries = [];
         const sections = wb.SheetNames.map((name) => {
           const sheet = wb.Sheets[name];
           const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
           const nonEmpty = rows.filter((r) => r.some((cell) => String(cell).trim() !== ''));
+          totalRows += Math.max(0, nonEmpty.length - 1);
+          const headers = nonEmpty[0] ? nonEmpty[0].map((c) => String(c).trim()).filter(Boolean) : [];
+          sheetSummaries.push(`“${name}” (${Math.max(0, nonEmpty.length - 1)} records${headers.length ? `: ${headers.slice(0, 5).join(', ')}` : ''})`);
           if (!nonEmpty.length) return `<p class="muted">Sheet "${esc(name)}" is empty.</p>`;
-          const tblRows = nonEmpty.slice(0, 40).map((r, rIdx) => {
+          const tblRows = nonEmpty.slice(0, 30).map((r, rIdx) => {
             const tag = rIdx === 0 ? 'th' : 'td';
             return `<tr>${r.map((c) => `<${tag}>${esc(String(c))}</${tag}>`).join('')}</tr>`;
           }).join('');
@@ -345,20 +433,25 @@
         return {
           kind: `Spreadsheet (${wb.SheetNames.length} sheet${wb.SheetNames.length === 1 ? '' : 's'})`,
           wordCount: plain.split(/\s+/).filter(Boolean).length,
-          summary: `Spreadsheet containing ${wb.SheetNames.length} sheet(s): ${wb.SheetNames.join(', ')}`,
-          html: sections,
+          abstract: `Structured dataset containing ${wb.SheetNames.length} worksheet(s) and approximately ${totalRows} data record(s): ${sheetSummaries.join('; ')}.`,
+          highlights: sheetSummaries,
+          metrics: [`${wb.SheetNames.length} sheet(s)`, `${totalRows} row(s)`],
+          keywords: wb.SheetNames.map((s) => s.toLowerCase()),
+          rawHtml: sections,
           plainText: plain.trim(),
         };
       }
 
-      // Plain text, CSV, JSON, Markdown, etc.
       const text = await res.text();
-      const info = summarizeText(text);
+      const info = buildAbstractFromText(text, doc);
       return {
         kind: ext.toUpperCase() || 'Text File',
         wordCount: info.wordCount,
-        summary: info.summary,
-        html: info.paragraphs.length
+        abstract: info.abstract,
+        highlights: info.highlights,
+        metrics: info.metrics,
+        keywords: info.keywords,
+        rawHtml: info.paragraphs.length
           ? `<pre style="white-space:pre-wrap;font-family:inherit;margin:0;line-height:1.6">${esc(text.trim())}</pre>`
           : '<p class="muted">Empty file.</p>',
         plainText: text.trim(),
@@ -367,8 +460,11 @@
       return {
         kind: ext.toUpperCase() || 'File',
         wordCount: 0,
-        summary: 'Could not extract content automatically.',
-        html: `<p style="color:#b91c1c;margin:0">Unable to read file content (${esc(err.message)}).</p>`,
+        abstract: `Unable to extract readable text from “${doc.title}” (${err.message}).`,
+        highlights: [],
+        metrics: [],
+        keywords: [],
+        rawHtml: `<p style="color:#b91c1c;margin:0">Unable to read file content (${esc(err.message)}).</p>`,
         plainText: '',
       };
     }
@@ -376,26 +472,39 @@
 
   let lastExtracted = [];
 
+  function synthesizeMasterAbstract(entries) {
+    const depts = [...new Set(entries.map((e) => e.doc.category))];
+    const evs = [...new Set(entries.map((e) => e.doc.subfolder).filter((s) => s && s !== 'General'))];
+    const dtypes = [...new Set(entries.map((e) => e.doc.doc_type).filter((s) => s && s !== 'General'))];
+    const dates = entries.map((e) => e.doc.document_date).filter(Boolean).sort();
+    const dateSpan = dates.length
+      ? (dates[0] === dates[dates.length - 1] ? ISS.fmtDate(dates[0]) : `${ISS.fmtDate(dates[0])} to ${ISS.fmtDate(dates[dates.length - 1])}`)
+      : 'unspecified dates';
+
+    const opening = `This consolidated report synthesizes ${entries.length} selected document${entries.length === 1 ? '' : 's'} from ${depts.join(', ')}${evs.length ? ` covering ${evs.join(', ')}` : ''}${dtypes.length ? ` (${dtypes.join(', ')})` : ''}, dated ${dateSpan}.`;
+
+    const perDocSynthesis = entries.map((e) => {
+      const lead = e.extracted.abstract.split(/(?<=[.!?])\s+/)[0] || e.extracted.abstract;
+      return `In “${e.doc.title},” ${lead.charAt(0).toLowerCase() + lead.slice(1)}`;
+    }).join(' ');
+
+    const allKeywords = [...new Set(entries.flatMap((e) => e.extracted.keywords || []))].slice(0, 8);
+    return { narrative: `${opening} ${perDocSynthesis}`, keywords: allKeywords };
+  }
+
   function buildContentReportHtml(entries, generatedAt) {
     const totalWords = entries.reduce((sum, e) => sum + (e.extracted.wordCount || 0), 0);
-
-    const execOverview = entries.map((e, idx) => `
-      <li>
-        <strong>${idx + 1}. ${esc(e.doc.title)}</strong>
-        <span style="color:#64748b;font-size:12px">(${esc(e.doc.category)} · ${esc(e.doc.subfolder || 'General')})</span>:
-        <span style="color:#334155">${esc(e.extracted.summary)}</span>
-      </li>`).join('');
+    const master = synthesizeMasterAbstract(entries);
 
     const sectionsHtml = entries.map((e, idx) => `
       <section class="rpt-doc-card">
         <div class="rpt-doc-head">
           <div>
-            <span class="rpt-num">Document ${idx + 1} of ${entries.length}</span>
-            <h3 style="margin:4px 0 2px;font-size:17px;color:#0f172a">${esc(e.doc.title)}</h3>
+            <span class="rpt-num">Source ${idx + 1} of ${entries.length}</span>
+            <h3 style="margin:3px 0 2px;font-size:16.5px;color:#0f172a">${esc(e.doc.title)}</h3>
             <div style="font-size:12px;color:#64748b">
               ${esc(e.doc.category)} &rsaquo; ${esc(e.doc.subfolder || 'General')} &rsaquo; ${esc(e.doc.doc_type || 'General')}
               &nbsp;·&nbsp; Date: ${ISS.fmtDate(e.doc.document_date)}
-              &nbsp;·&nbsp; File: ${esc(e.doc.standardized_file_name)}
             </div>
           </div>
           <div style="text-align:right;font-size:12px;color:#475569">
@@ -404,7 +513,28 @@
           </div>
         </div>
         <div class="rpt-doc-body">
-          ${e.extracted.html}
+          <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#4b2fd1;margin-bottom:6px">Document Abstract</div>
+          <p style="margin:0 0 10px;line-height:1.7;color:#1e293b;text-align:justify">${esc(e.extracted.abstract)}</p>
+
+          ${e.extracted.metrics && e.extracted.metrics.length ? `
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+              ${e.extracted.metrics.map((m) => `<span style="font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0">${esc(m)}</span>`).join('')}
+            </div>` : ''}
+
+          ${e.extracted.highlights && e.extracted.highlights.length > 1 ? `
+            <div style="background:#f8fafc;border-left:3px solid #4b2fd1;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">KEY POINTS</div>
+              <ul style="margin:0;padding-left:16px;font-size:12.5px;color:#334155;display:grid;gap:3px">
+                ${e.extracted.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}
+              </ul>
+            </div>` : ''}
+
+          <details class="rpt-raw-toggle" style="margin-top:8px">
+            <summary style="cursor:pointer;font-size:12px;font-weight:600;color:#64748b;user-select:none">View full extracted source text</summary>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #cbd5e1;font-size:13px;color:#334155">
+              ${e.extracted.rawHtml}
+            </div>
+          </details>
         </div>
       </section>`).join('');
 
@@ -412,26 +542,33 @@
       <div class="rpt-sheet">
         <div class="rpt-banner">
           <div>
-            <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.82;font-weight:700">Information Systems Society · Compiled Content Report</div>
-            <h2 style="margin:4px 0 2px;font-size:21px;color:#fff">Consolidated Document Content Report</h2>
+            <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.82;font-weight:700">Information Systems Society · Consolidated Abstract</div>
+            <h2 style="margin:4px 0 2px;font-size:21px;color:#fff">Consolidated Document Abstract Report</h2>
             <div style="font-size:12.5px;opacity:.9">Prepared on ${esc(generatedAt)} by ${esc(userName || role)} (${esc(role)})</div>
           </div>
           <div style="text-align:right;font-size:12.5px;opacity:.95">
-            <div><strong>${entries.length}</strong> Document${entries.length === 1 ? '' : 's'} Compiled</div>
-            <div><strong>${totalWords.toLocaleString()}</strong> Total Words Extracted</div>
+            <div><strong>${entries.length}</strong> Source Document${entries.length === 1 ? '' : 's'}</div>
+            <div><strong>${totalWords.toLocaleString()}</strong> Total Words Analyzed</div>
           </div>
         </div>
 
         <div class="rpt-exec">
-          <div style="font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#3b22b8;margin-bottom:8px">
-            <i class="fa-solid fa-list-check"></i> Executive Highlights
+          <div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#3b22b8;margin-bottom:8px">
+            <i class="fa-solid fa-align-left"></i> Consolidated Abstract
           </div>
-          <ul style="margin:0;padding-left:18px;display:grid;gap:6px;font-size:13px;line-height:1.5">
-            ${execOverview}
-          </ul>
+          <p style="margin:0;font-size:14px;line-height:1.75;color:#1e293b;text-align:justify">
+            ${esc(master.narrative)}
+          </p>
+          ${master.keywords.length ? `
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(75,47,209,.15);font-size:12.5px;color:#475569">
+              <strong style="color:#3b22b8">Keywords:</strong> ${master.keywords.map((k) => esc(k)).join(' · ')}
+            </div>` : ''}
         </div>
 
-        <div style="display:grid;gap:16px">
+        <div style="font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#475569;margin:0 0 10px">
+          Individual Document Abstracts
+        </div>
+        <div style="display:grid;gap:14px">
           ${sectionsHtml}
         </div>
       </div>`;
@@ -444,16 +581,16 @@
 
     if (!reportModal) {
       document.body.insertAdjacentHTML('beforeend', `
-        <dialog class="dlg wide" id="reportDlg" aria-label="Compiled Document Content Report" style="width:min(1140px,95vw);max-width:95vw;margin:auto;padding:0;border:1px solid rgba(75,47,209,.25);border-radius:20px;overflow:hidden;box-shadow:0 28px 70px rgba(15,18,36,.38)">
+        <dialog class="dlg wide" id="reportDlg" aria-label="Consolidated Document Abstract Report" style="width:min(1140px,95vw);max-width:95vw;margin:auto;padding:0;border:1px solid rgba(75,47,209,.25);border-radius:20px;overflow:hidden;box-shadow:0 28px 70px rgba(15,18,36,.38)">
           <div class="dlg-card left" style="width:100%;max-width:100%;padding:0;border-radius:0;background:#f8fafc">
             <div class="dlg-head" style="margin:0;padding:14px 22px;background:#13172e;color:#fff;border-bottom:1px solid rgba(255,255,255,.12)">
               <div style="display:flex;align-items:center;gap:10px">
                 <i class="fa-solid fa-file-lines" style="color:#8fe3f2;font-size:18px"></i>
-                <h3 style="color:#fff;margin:0;font-size:16px">Compiled Content Report</h3>
+                <h3 style="color:#fff;margin:0;font-size:16px">Consolidated Abstract Report</h3>
               </div>
               <div class="row-wrap" style="gap:8px">
                 <button type="button" class="btn btn-sm" id="rptPrint" style="background:#fff;color:#3b22b8;font-weight:700;border:0"><i class="fa-solid fa-print"></i> Print / Save PDF</button>
-                <button type="button" class="btn btn-sm" id="rptCsv" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.22)"><i class="fa-solid fa-file-csv"></i> Export Text CSV</button>
+                <button type="button" class="btn btn-sm" id="rptCsv" title="Download summary table for Microsoft Excel or Google Sheets" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.22)"><i class="fa-solid fa-file-excel"></i> Export to Excel</button>
                 <button type="button" class="icon-btn" data-close aria-label="Close" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.2)"><i class="fa-solid fa-xmark"></i></button>
               </div>
             </div>
@@ -467,7 +604,7 @@
 
     $('#rptBody').innerHTML = `<div style="padding:48px;text-align:center;color:#475569">
       <i class="fa-solid fa-spinner fa-spin" style="font-size:26px;color:#4b2fd1;margin-bottom:10px"></i>
-      <div style="font-weight:700;font-size:15px">Reading &amp; compiling content from ${items.length} file${items.length === 1 ? '' : 's'}…</div>
+      <div style="font-weight:700;font-size:15px">Analyzing &amp; generating consolidated abstract from ${items.length} file${items.length === 1 ? '' : 's'}…</div>
     </div>`;
     reportModal.showModal();
 
@@ -485,15 +622,16 @@
     return `<style>
       .rpt-sheet{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;color:#0f172a;box-shadow:0 8px 24px rgba(15,23,42,.06)}
       .rpt-banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;padding:20px 24px;border-radius:14px;background:linear-gradient(135deg,#3b22b8 0%,#4b2fd1 55%,#0e8aa8 100%);color:#fff;margin-bottom:18px}
-      .rpt-exec{background:#f8f7ff;border:1px solid rgba(75,47,209,.2);border-radius:12px;padding:16px 20px;margin-bottom:20px}
+      .rpt-exec{background:#f8f7ff;border:1px solid rgba(75,47,209,.22);border-radius:12px;padding:18px 22px;margin-bottom:20px}
       .rpt-doc-card{border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;background:#fff;page-break-inside:avoid}
       .rpt-doc-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 18px;background:#f8fafc;border-bottom:1px solid #e2e8f0}
       .rpt-num{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#4b2fd1}
       .rpt-pill{display:inline-block;padding:3px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:700;font-size:11.5px}
-      .rpt-doc-body{padding:18px 20px;font-size:13.5px;color:#1e293b}
+      .rpt-doc-body{padding:16px 20px;font-size:13.5px;color:#1e293b}
       .rpt-mini-tbl{width:100%;border-collapse:collapse;font-size:12px}
       .rpt-mini-tbl th,.rpt-mini-tbl td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}
       .rpt-mini-tbl th{background:#f1f5f9;font-weight:700}
+      @media print{.rpt-raw-toggle:not([open]){display:none}.rpt-raw-toggle summary{display:none}}
     </style>`;
   }
 
@@ -502,7 +640,7 @@
     const nowStr = new Date().toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' });
     const win = window.open('', '_blank', 'width=1050,height=780');
     if (!win) return ISS.toast('Allow pop-ups to print or save as PDF.', 'warn');
-    win.document.write(`<!doctype html><html><head><title>Compiled Document Content Report</title>
+    win.document.write(`<!doctype html><html><head><title>Consolidated Document Abstract Report</title>
       <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:20px;color:#0f172a}@media print{body{margin:0}.rpt-sheet{border:0;box-shadow:none;padding:0}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
       ${reportStyles()}</head><body>${buildContentReportHtml(lastExtracted, nowStr)}</body></html>`);
     win.document.close();
@@ -519,21 +657,21 @@
       : await Promise.all(items.map(async (doc) => ({ doc, extracted: await extractFileContent(doc) })));
 
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const headers = ['#', 'Document Title', 'Department', 'Event', 'Document Type', 'Document Date', 'Word Count', 'Extracted Content'];
+    const headers = ['#', 'Document Title', 'Department', 'Event', 'Document Type', 'Document Date', 'Word Count', 'Document Abstract', 'Key Points'];
     const lines = [headers.map(q).join(',')].concat(
       entries.map(({ doc, extracted }, i) => [
         i + 1, doc.title, doc.category, doc.subfolder || 'General',
         doc.doc_type || 'General', doc.document_date || '',
-        extracted.wordCount || 0, extracted.plainText || extracted.summary,
+        extracted.wordCount || 0, extracted.abstract, (extracted.highlights || []).join(' | '),
       ].map(q).join(','))
     );
     const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ISS_Content_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `ISS_Consolidated_Abstract_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
-    ISS.toast(`Exported content from ${entries.length} file(s) to CSV.`);
+    ISS.toast(`Downloaded Excel summary for ${entries.length} document${entries.length === 1 ? '' : 's'}.`);
   }
 
   /* ---------- data loading ---------- */
@@ -544,12 +682,7 @@
     const validIds = new Set(docs.map((doc) => doc.id));
     selected = new Set([...selected].filter((id) => validIds.has(id)));
 
-    const years = [...new Set(docs.map((doc) => (doc.uploaded_at || doc.document_date || '').slice(0, 4)).filter((y) => /^\d{4}$/.test(y)))].sort().reverse();
-    const prevYear = $('#mYear').value;
-    $('#mYear').innerHTML = '<option value="">All years</option>' + years.map((y) => `<option value="${y}">${y}</option>`).join('');
-    $('#mYear').value = years.includes(prevYear) ? prevYear : '';
-    filter.year = $('#mYear').value;
-
+    rebuildYearOptions($('#mYear').value);
     render();
   }
 
@@ -639,7 +772,6 @@
 
   view.addEventListener('click', (e) => {
     if (e.target.closest('#btnGenReport')) return openReportModal();
-    if (e.target.closest('#btnCsvReport')) return exportCsvReport();
     if (e.target.closest('#btnExitSel')) return exitSelectMode();
     if (selectMode && !e.target.closest('button,a,input,label')) {
       const cardRow = e.target.closest('[data-doc-row]');
@@ -678,7 +810,29 @@
   $('#q').addEventListener('input', ISS.debounce((e) => { query = e.target.value; render(); }, 140));
   $('#mFrom').addEventListener('change', (e) => { filter.from = Number(e.target.value) || 0; render(); });
   $('#mTo').addEventListener('change', (e) => { filter.to = Number(e.target.value) || 0; render(); });
-  $('#mYear').addEventListener('change', (e) => { filter.year = e.target.value; render(); });
+  $('#mYear').addEventListener('change', async (e) => {
+    if (e.target.value === '__add_year__') {
+      e.target.value = filter.year || '';
+      const yr = await ISS.prompt({
+        icon: 'fa-calendar',
+        title: 'Filter by custom year',
+        confirm: 'Apply year',
+        input: {
+          placeholder: 'e.g. 2024',
+          validate: (v) => /^\d{4}$/.test(v.trim()) ? '' : 'Enter a valid 4-digit year (e.g. 2024).',
+        },
+      });
+      if (yr) {
+        const cleanYr = yr.trim();
+        customYears.add(cleanYr);
+        rebuildYearOptions(cleanYr);
+        render();
+      }
+      return;
+    }
+    filter.year = e.target.value;
+    render();
+  });
   $('#resetFilter').addEventListener('click', () => {
     $('#q').value = ''; query = '';
     $('#mFrom').value = ''; $('#mTo').value = ''; $('#mYear').value = '';
@@ -689,7 +843,7 @@
 
   ISS.ready.then(async (me) => {
     role = me.role;
-    userName = me.full_name || me.username || '';
+    userName = me.fullName || me.full_name || me.username || '';
     try { await load(); } catch (err) { view.innerHTML = `<div class="empty"><i class="fa-solid fa-triangle-exclamation"></i><strong>Could not load documents</strong>${esc(err.message)}</div>`; }
   });
 })();

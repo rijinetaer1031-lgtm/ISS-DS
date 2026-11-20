@@ -25,6 +25,10 @@ if (!process.env.DATABASE_URL) {
   console.error('✖ DATABASE_URL is missing. Fill it in inside .env.');
   process.exit(1);
 }
+if (IS_PROD && !process.env.SESSION_SECRET) {
+  console.error('✖ SESSION_SECRET is missing. Set a long random string in your production environment variables.');
+  process.exit(1);
+}
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 const app = express();
@@ -44,7 +48,7 @@ app.use((req, res, next) => {
       "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
       "img-src 'self' data: blob:",
       "media-src 'self' blob:",
-      "frame-src 'self' https://docs.google.com",
+      "frame-src 'self' blob: https://docs.google.com",
       "connect-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
