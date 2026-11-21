@@ -6,7 +6,7 @@
 
   function actions(kind, id) {
     return `<button class="btn btn-ghost btn-sm" data-act="restore" data-kind="${kind}" data-id="${id}"><i class="fa-solid fa-rotate-left"></i><span>Restore</span></button>` +
-      (role === 'Administrator' ? `<button class="btn btn-ghost btn-sm" data-act="purge" data-kind="${kind}" data-id="${id}" style="color:var(--rose)"><i class="fa-solid fa-fire"></i><span>Delete forever</span></button>` : '');
+      (['Administrator', 'President'].includes(role) ? `<button class="btn btn-ghost btn-sm" data-act="purge" data-kind="${kind}" data-id="${id}" style="color:var(--rose)"><i class="fa-solid fa-fire"></i><span>Delete forever</span></button>` : '');
   }
 
   function render() {

@@ -113,7 +113,7 @@ router.post('/api/folders/restore/:id', requireAuth, notOfficer, async (req, res
   res.json({ success: true });
 });
 
-router.delete('/api/folders/permanent/:id', requireAuth, requireRole('Administrator'), async (req, res) => {
+router.delete('/api/folders/permanent/:id', requireAuth, requireRole('Administrator', 'President'), async (req, res) => {
   await assertFolderAccess(req.session.role, req.params.id);
   const r = await pool.query('DELETE FROM EventFolder WHERE id = $1 AND is_deleted RETURNING category, name', [req.params.id]);
   if (!r.rowCount) throw httpError(404, 'Event not found in the Recycle Bin.');
@@ -185,7 +185,7 @@ router.post('/api/subfolders/restore/:id', requireAuth, notOfficer, async (req, 
   res.json({ success: true });
 });
 
-router.delete('/api/subfolders/permanent/:id', requireAuth, requireRole('Administrator'), async (req, res) => {
+router.delete('/api/subfolders/permanent/:id', requireAuth, requireRole('Administrator', 'President'), async (req, res) => {
   await assertSubFolderAccess(req.session.role, req.params.id);
   const r = await pool.query('DELETE FROM SubFolder WHERE id = $1 AND is_deleted RETURNING name', [req.params.id]);
   if (!r.rowCount) throw httpError(404, 'Folder not found in the Recycle Bin.');
@@ -376,7 +376,7 @@ router.post('/api/documents/restore/:id', requireAuth, notOfficer, async (req, r
   res.json({ success: true });
 });
 
-router.delete('/api/documents/permanent-delete/:id', requireAuth, requireRole('Administrator'), async (req, res) => {
+router.delete('/api/documents/permanent-delete/:id', requireAuth, requireRole('Administrator', 'President'), async (req, res) => {
   const files = [];
   await tx(async (c) => {
     const d = await c.query(`SELECT d.title FROM Document d WHERE d.id = $1 AND d.is_deleted${visibility(req.session.role)} FOR UPDATE OF d`, [req.params.id]);
