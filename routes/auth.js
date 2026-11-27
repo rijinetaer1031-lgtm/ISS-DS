@@ -15,7 +15,7 @@ function throttled(ip) {
   const rec = attempts.get(ip);
   if (!rec || rec.reset < now) { attempts.set(ip, { n: 1, reset: now + 15 * 60 * 1000 }); return false; }
   rec.n += 1;
-  return rec.n > 10;
+  return rec.n > 50;
 }
 setInterval(() => { const now = Date.now(); for (const [k, v] of attempts) if (v.reset < now) attempts.delete(k); }, 60 * 1000).unref();
 
@@ -25,7 +25,7 @@ router.post('/api/login', async (req, res) => {
   if (!username || !password) throw httpError(400, 'Enter your username and password.');
   if (throttled(req.ip)) throw httpError(429, 'Too many attempts. Try again in 15 minutes.');
 
-  const { rows } = await pool.query('SELECT * FROM UserAccount WHERE username = $1', [username]);
+  const { rows } = await pool.query('SELECT * FROM UserAccount WHERE lower(username) = lower($1)', [username]);
   const user = rows[0];
 
   let valid = false;
