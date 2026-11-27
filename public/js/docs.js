@@ -135,12 +135,16 @@
         $('#pvBody').innerHTML = `<iframe src="${esc(url)}" title="${esc(doc.title)}" style="width:100%;height:79vh;border:0;border-radius:12px;background:#fff;box-shadow:0 16px 40px rgba(0,0,0,.45)"></iframe>`;
 
       } else if (['txt', 'csv', 'json', 'md', 'log', 'xml', 'html'].includes(ext)) {
-        const text = await (await fetch(url)).text();
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status === 403 ? 'Access denied.' : 'File not found in storage.');
+        const text = await res.text();
         $('#pvBody').innerHTML = `<pre style="width:100%;max-height:79vh;overflow:auto;margin:0;padding:24px 28px;border-radius:12px;background:#fff;color:#1e293b;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;box-shadow:0 16px 40px rgba(0,0,0,.45)">${esc(text)}</pre>`;
 
       } else if (ext === 'docx') {
         await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');
-        const buf = await (await fetch(url)).arrayBuffer();
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status === 403 ? 'Access denied.' : 'File not found in storage.');
+        const buf = await res.arrayBuffer();
         const { value: html } = await window.mammoth.convertToHtml({ arrayBuffer: buf });
         $('#pvBody').innerHTML = `
           <div style="width:100%;max-width:860px;max-height:79vh;overflow:auto;padding:36px 44px;border-radius:12px;background:#fff;color:#1e293b;font-size:15px;line-height:1.65;box-shadow:0 16px 40px rgba(0,0,0,.45)">
@@ -154,7 +158,9 @@
 
       } else if (['xlsx', 'xls'].includes(ext)) {
         await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
-        const buf = await (await fetch(url)).arrayBuffer();
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.status === 403 ? 'Access denied.' : 'File not found in storage.');
+        const buf = await res.arrayBuffer();
         const wb = window.XLSX.read(buf, { type: 'array' });
         const sheetsHtml = wb.SheetNames.map((name) => {
           const table = window.XLSX.utils.sheet_to_html(wb.Sheets[name]);
