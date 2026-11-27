@@ -27,7 +27,11 @@
     else if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     let res;
     try { res = await fetch(url, opts); } catch { throw new Error('Network error. Check your connection and try again.'); }
-    if (res.status === 401) { location.href = '/login'; throw new Error('Please sign in again.'); }
+    if (res.status === 401) {
+      try { sessionStorage.removeItem('iss.me'); } catch {}
+      location.href = '/login';
+      throw new Error('Please sign in again.');
+    }
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error((data && data.error) || `Something went wrong (${res.status}).`);
     return data;

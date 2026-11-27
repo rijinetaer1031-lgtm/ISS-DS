@@ -97,10 +97,14 @@ app.use(require('./routes/auth'));
 app.use(require('./routes/admin'));
 app.use(require('./routes/documents'));
 
-/* ---- Private File Delivery ---- */
 app.use('/repository', requireAuth, (req, res, next) => {
-  let folder = '';
-  try { folder = decodeURIComponent(req.path).split('/')[1] || ''; } catch { return res.sendStatus(400); }
+  let normalized = '';
+  try {
+    normalized = path.posix.normalize(decodeURIComponent(req.path));
+  } catch {
+    return res.sendStatus(400);
+  }
+  const folder = normalized.replace(/^\/+/, '').split('/')[0] || '';
   if (isFinance(folder) && !canFinance(req.session.role)) return res.sendStatus(403);
   next();
 }, express.static(REPO_DIR, { dotfiles: 'deny', index: false, fallthrough: false }));
