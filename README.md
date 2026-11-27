@@ -32,8 +32,8 @@ Requirements:
 - Git (optional, if cloning from GitHub)
 
 Steps to Download or Clone:
-git clone https://github.com/rijinetaer1031-lgtm/iss-ds-portal.git
-cd iss-ds-portal
+git clone https://github.com/rijinetaer1031-lgtm/ISS-DS.git
+cd ISS-DS
 
 Install Dependencies and Configure Environment:
 1. Install packages: npm install
@@ -57,12 +57,10 @@ Use your configured seed or test accounts on a clean local or test database to v
 - Treasurer: username treasurer, password Treas@1234 - Manage and access Fiscal financial and liquidation reports and Secretariat records; manage folders; restore Recycle Bin items
 - Officer: username officer, password Officer@1234 - Upload, edit metadata, preview, search, filter, and download Secretariat documents
 
-Confirm exact seed credentials from your local setup script before running your clean-machine test.
-
 6. Running the Tests
-1. Start the server (npm start) against a clean test database.
-2. Run automated tests if defined in package.json: npm test.
-3. Execute the test cases documented in Phase 5 of the project portfolio and 04_Evidence/Testing_Evidence/ (authentication and RBAC, Fiscal access restriction, upload and standardized naming, versioning and signed preview, Presidential approval and activity log, Recycle Bin restore and permanent purge, and backup and restore).
+    1. Start the server (npm start) against a clean test database.
+    2. Run automated tests if defined in package.json: npm test.
+    3. Execute the test cases documented in Phase 5 of the project portfolio and 04_Evidence/Testing_Evidence/ (authentication and RBAC, Fiscal access restriction, upload         and standardized naming, versioning and signed preview, Presidential approval and activity log, Recycle Bin restore and permanent purge, and backup and restore).
 
 7. Project Structure
 - config and server.js: Express server setup, security headers, PostgreSQL connection and schema initialization, and Sunday 12:00 AM backup cron job.
@@ -85,6 +83,6 @@ Team Name: WARKA
 - Standalone scope: Does not integrate with external university-wide systems.
 
 10. Final Version
-- Repository: https://github.com/rijinetaer1031-lgtm/iss-ds-portal.git
-- Final Commit ID: 74bea84 (update if a later commit is pushed)
+- Repository: https://github.com/rijinetaer1031-lgtm/ISS-DS.git
+- Final Commit ID: 74bea84 
 - Date: November 22, 2026
