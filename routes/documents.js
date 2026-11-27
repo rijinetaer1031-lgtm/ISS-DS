@@ -94,9 +94,14 @@ router.put('/api/folders/:id', requireAuth, notOfficer, async (req, res) => {
 
 router.delete('/api/folders/:id', requireAuth, notOfficer, async (req, res) => {
   await assertFolderAccess(req.session.role, req.params.id);
-  const r = await pool.query('UPDATE EventFolder SET is_deleted = TRUE, deleted_at = now() WHERE id = $1 AND is_deleted = FALSE RETURNING category, name', [req.params.id]);
-  if (!r.rowCount) throw httpError(404, 'Event not found.');
-  await logActivity(req.session.userId, 'Delete Event', null, `Moved event "${r.rows[0].name}" to Recycle Bin`);
+  await tx(async (c) => {
+    const r = await c.query('UPDATE EventFolder SET is_deleted = TRUE, deleted_at = now() WHERE id = $1 AND is_deleted = FALSE RETURNING category, name', [req.params.id]);
+    if (!r.rowCount) throw httpError(404, 'Event not found.');
+    const { category, name } = r.rows[0];
+    await c.query('UPDATE SubFolder SET is_deleted = TRUE, deleted_at = now() WHERE category = $1 AND event_name = $2 AND is_deleted = FALSE', [category, name]);
+    await c.query('UPDATE Document SET is_deleted = TRUE WHERE category = $1 AND subfolder = $2 AND is_deleted = FALSE', [category, name]);
+    await logActivity(req.session.userId, 'Delete Event', null, `Moved event "${name}" to Recycle Bin`, c);
+  });
   res.json({ success: true });
 });
 
@@ -107,9 +112,14 @@ router.get('/api/folders/deleted', requireAuth, notOfficer, async (req, res) => 
 
 router.post('/api/folders/restore/:id', requireAuth, notOfficer, async (req, res) => {
   await assertFolderAccess(req.session.role, req.params.id);
-  const r = await pool.query('UPDATE EventFolder SET is_deleted = FALSE, deleted_at = NULL WHERE id = $1 AND is_deleted RETURNING name', [req.params.id]);
-  if (!r.rowCount) throw httpError(404, 'Event not found in the Recycle Bin.');
-  await logActivity(req.session.userId, 'Restore Event', null, `Restored event "${r.rows[0].name}"`);
+  await tx(async (c) => {
+    const r = await c.query('UPDATE EventFolder SET is_deleted = FALSE, deleted_at = NULL WHERE id = $1 AND is_deleted RETURNING category, name', [req.params.id]);
+    if (!r.rowCount) throw httpError(404, 'Event not found in the Recycle Bin.');
+    const { category, name } = r.rows[0];
+    await c.query('UPDATE SubFolder SET is_deleted = FALSE, deleted_at = NULL WHERE category = $1 AND event_name = $2 AND is_deleted = TRUE', [category, name]);
+    await c.query('UPDATE Document SET is_deleted = FALSE WHERE category = $1 AND subfolder = $2 AND is_deleted = TRUE', [category, name]);
+    await logActivity(req.session.userId, 'Restore Event', null, `Restored event "${name}"`, c);
+  });
   res.json({ success: true });
 });
 
@@ -294,7 +304,7 @@ router.post('/api/upload', requireAuth, upload.single('file'), async (req, res) 
   }
 });
 
-router.put('/api/documents/:id', requireAuth, async (req, res) => {
+router.put('/api/documents/:id', requireAuth, notOfficer, async (req, res) => {
   const title = str(req.body.title), category = str(req.body.category), date = str(req.body.date);
   const { userId, role } = req.session;
   if (!title || !category || !date) throw httpError(400, 'Title, department and date are required.');
