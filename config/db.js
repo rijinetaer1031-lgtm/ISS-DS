@@ -1,9 +1,7 @@
 'use strict';
 const { Pool, types } = require('pg');
 
-// Ensure TIMESTAMP WITHOUT TIME ZONE (OID 1114) is parsed as Philippine Time (+08:00)
-types.setTypeParser(1114, (str) => str.replace(' ', 'T') + '+08:00');
-
+types.setTypeParser(1114, (str) => str.replace(' ', 'T') + 'Z');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
