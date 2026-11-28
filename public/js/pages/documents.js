@@ -666,11 +666,15 @@
       ].map(q).join(','))
     );
     const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `ISS_Consolidated_Abstract_${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `ISS_Consolidated_Abstract_${new Date().toISOString().slice(0, 10)}.csv`,
+    });
+    document.body.append(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
     ISS.toast(`Downloaded Excel summary for ${entries.length} document${entries.length === 1 ? '' : 's'}.`);
   }
 
@@ -796,10 +800,10 @@
   });
 
   crumbs.addEventListener('click', (e) => {
-    const { cat, ev } = route();
+  const { cat, ev } = route();
     if (e.target.closest('#startReportMode')) return enterSelectMode();
     if (e.target.closest('#crumbReport')) return openReportModal();
-    if (e.target.closest('[data-home]')) { $('#q').value = ''; query = ''; go(); }
+    if (e.target.closest('[data-home]')) { $('#q').value = ''; query = ''; selectMode = false; selected.clear(); go(); }
     else if (e.target.closest('[data-back-cat]')) go(cat);
     else if (e.target.closest('[data-back-ev]')) go(cat, ev);
     else if (e.target.closest('#addEvent')) addEvent(cat);

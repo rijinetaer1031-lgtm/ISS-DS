@@ -104,12 +104,18 @@
     }
     updatePreview();
   }
-  fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
-  $('#clearFile').addEventListener('click', () => { fileInput.value = ''; setFile(null); });
+  let droppedFile = null;
+  fileInput.addEventListener('change', () => { droppedFile = null; setFile(fileInput.files[0]); });
+  $('#clearFile').addEventListener('click', () => { droppedFile = null; fileInput.value = ''; setFile(null); });
   ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', (e) => { if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; setFile(fileInput.files[0]); } });
-
+  drop.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length) {
+      droppedFile = e.dataTransfer.files[0];
+      try { fileInput.files = e.dataTransfer.files; } catch {}
+      setFile(droppedFile);
+    }
+  });
   ['input', 'change'].forEach((t) => { $('#title').addEventListener(t, updatePreview); $('#date').addEventListener(t, updatePreview); });
 
   /* ---- upload with real progress ---- */
@@ -132,12 +138,16 @@
     if (!$('#title').value.trim()) return ISS.toast('Give the document a title.', 'warn'), $('#title').focus();
     if (!cat.value) return ISS.toast('Choose Secretariat or Fiscal.', 'warn'), cat.focus();
     if (!$('#date').value) return ISS.toast('Pick the document date.', 'warn'), $('#date').focus();
-    if (!fileInput.files[0]) return ISS.toast('Choose a file to upload.', 'warn');
+    const chosenFile = droppedFile || fileInput.files[0];
+    if (!chosenFile) return ISS.toast('Choose a file to upload.', 'warn');
+
+    const fd = new FormData(form);
+    fd.set('file', chosenFile);
 
     const bar = $('#progress'), fill = $('i', bar);
     bar.hidden = false; fill.style.width = '0';
     try {
-      const result = await ISS.busy($('#submit'), () => send(new FormData(form), (p) => { fill.style.width = `${Math.round(p * 100)}%`; }), 'Uploading…');
+      const result = await ISS.busy($('#submit'), () => send(fd, (p) => { fill.style.width = `${Math.round(p * 100)}%`; }), 'Uploading…');
       const goView = await ISS.confirm({ icon: 'fa-circle-check', tone: 'ok', title: `Uploaded as version ${result.version}`, text: result.name, confirm: 'Open in My Documents', cancel: 'Upload another' });
       if (goView) {
         const path = [cat.value, sub.value, dtype.value].map(encodeURIComponent).join('/');
