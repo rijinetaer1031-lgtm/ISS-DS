@@ -1,6 +1,7 @@
 'use strict';
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 
+types.setTypeParser(1114, (str) => str.replace(' ', 'T') + 'Z');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
