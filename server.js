@@ -9,7 +9,8 @@ const express = require('express');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const multer = require('multer');
-const archiver = require('archiver');
+const _archiver = require('archiver');
+const archiver = typeof _archiver === 'function' ? _archiver : (_archiver.default || _archiver.create);
 const cron = require('node-cron');
 
 const { pool, ensureSchema } = require('./config/db');

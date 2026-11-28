@@ -31,6 +31,7 @@
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'Sign-in failed. Try again.');
+          try { sessionStorage.removeItem('iss.me'); } catch {}
           location.href = data.redirect || '/dashboard';
         } catch (err) {
           showError(err.message === 'Failed to fetch' ? 'Cannot reach the server. Check your connection.' : err.message);

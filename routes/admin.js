@@ -1,7 +1,8 @@
 'use strict';
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const archiver = require('archiver');
+const _archiver = require('archiver');
+const archiver = typeof _archiver === 'function' ? _archiver : (_archiver.default || _archiver.create);
 const { pool, tx, logActivity, httpError } = require('../config/db');
 const { str, getDatabaseExport, buildBackup } = require('../config/helpers');
 const { ROLES, ADMIN_ROLES, requireAuth, requireRole } = require('../middleware/auth');
