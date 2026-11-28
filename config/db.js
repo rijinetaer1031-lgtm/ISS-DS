@@ -8,6 +8,9 @@ const pool = new Pool({
   max: 10,
   idleTimeoutMillis: 30000,
 });
+pool.on('connect', (client) => {
+  client.query("SET TIME ZONE 'Asia/Manila'").catch(() => {});
+});
 pool.on('error', (err) => console.error('Idle PostgreSQL client error:', err.message));
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });

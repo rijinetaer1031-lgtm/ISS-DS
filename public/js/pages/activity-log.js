@@ -20,12 +20,12 @@
         return { g: 'Users', icon: 'fa-user-gear', cls: '' };
       }
 
-      const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const ymd = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
       function dayLabel(d) {
-        const today = new Date(), y = new Date(); y.setDate(today.getDate() - 1);
+        const today = new Date(), y = new Date(Date.now() - 86400000);
         if (ymd(d) === ymd(today)) return 'Today';
         if (ymd(d) === ymd(y)) return 'Yesterday';
-        return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        return d.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       }
 
       function filtered() {
@@ -52,7 +52,7 @@
           html += `<div class="event ${l.meta.cls}" style="animation-delay:${Math.min(i, 12) * 25}ms">
             <div class="dot"><i class="fa-solid ${l.meta.icon}"></i></div>
             <div style="min-width:0"><div><strong>@${esc(l.username)}</strong> ${esc(l.action_type)}</div><div class="what">${esc(l.result || '')}${doc}</div></div>
-            <time datetime="${l.when.toISOString()}">${l.when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</time></div>`;
+            <time datetime="${l.when.toISOString()}">${l.when.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}</time></div>`;
         });
         $('#timeline').innerHTML = html;
         $('#more').hidden = list.length <= shown;
